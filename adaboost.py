@@ -143,9 +143,9 @@ if __name__ == '__main__':
     # classifierResult = adaClassify([[5, 5], [0, 0]], classifierArr)
     # print(classifierResult)
 
-    dataMat, labelMat = loadDataSet('horseColicTraining2.txt')
+    dataMat, labelMat = loadDataSet('data/horseColicTraining2.txt')
     classifierArr = adaBoostTrainDS(dataMat, labelMat, 10)
-    testMat, testLabelMat = loadDataSet('horseColicTest2.txt')
+    testMat, testLabelMat = loadDataSet('data/horseColicTest2.txt')
     prediction = adaClassify(testMat, classifierArr)
     errArr = mat(ones((67, 1)))
     print('error count:', errArr[prediction != mat(testLabelMat).T].sum())
