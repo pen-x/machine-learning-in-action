@@ -1,3 +1,4 @@
+import roc
 from numpy import *
 
 def stumpClassify(dataMatrix, dimen, threshVal, threshIneq):
@@ -40,10 +41,10 @@ def buildStump(dataMatrix, classLabels, D):
     bestStump = {}
     bestClassEst = mat(zeros((m, 1)))
     minError = inf
-    for i in range(n): # Loop through all features
+    for i in range(n):      # Loop through all features
         rangeMin = dataMat[:, i].min(); rangeMax = dataMat[:, i].max()
         stepSize = (rangeMax - rangeMin) / numSteps
-        for j in range(-1, int(numSteps) + 1): # Loop through all split values
+        for j in range(-1, int(numSteps) + 1):      # Loop through all split values
             for inequal in ['lt', 'gt']:
                 threshVal = (rangeMin + float(j) * stepSize)
                 predictedVals = stumpClassify(dataMat, i, threshVal, inequal)
@@ -71,27 +72,28 @@ def adaBoostTrainDS(dataMatrix, classLabels, numIter=40):
     Returns:
         Array of the best decision stumps on each iteration (weak classifier array).
     """
-    weakClassArr = [] # Store the best decision stump on each iteration
+    weakClassArr = []   # Store the best decision stump on each iteration
     m = shape(dataMatrix)[0]
-    D = mat(ones((m, 1)) / m) # Initial each sample to equal weight
-    aggClassEst = mat(zeros((m, 1))) # Combined classify result of all best decision stumps
+    D = mat(ones((m, 1)) / m)   # Initial each sample to equal weight
+    aggClassEst = mat(zeros((m, 1)))    # Combined classify result of all best decision stumps
     for i in range(numIter):
         bestStump, error, classEst = buildStump(dataMatrix, classLabels, D)
         # print('D:', D.T)
-        alpha = float(0.5 * log((1.0 - error) / max(error, 1e-16))) # Make sure won't divide 0
+        alpha = float(0.5 * log((1.0 - error) / max(error, 1e-16)))     # Make sure won't divide 0
         bestStump['alpha'] = alpha
         weakClassArr.append(bestStump)
         # print('classEst: ', classEst.T)
         expon = multiply(-1 * alpha * mat(classLabels).T, classEst)
         D = multiply(D, exp(expon))
         D = D / D.sum()
-        aggClassEst += alpha * classEst # Classify result multiple alpha is regarded as partial result
+        aggClassEst += alpha * classEst     # Classify result multiple alpha is regarded as partial result
         # print('aggClassEst: ', aggClassEst.T)
         aggErrors = multiply(sign(aggClassEst) != mat(classLabels).T, ones((m, 1)))
         errorRate = aggErrors.sum() / m
         # print('total error: ', errorRate, '\n')
         if errorRate == 0.0:
             break
+    roc.plotROC(aggClassEst.T, labelMat)    # Plot roc curve
     return weakClassArr
 
 def adaClassify(dataToClass, classifierArr):
