@@ -86,7 +86,12 @@ def ridgeRegres(xMat, yMat, lam=0.2):
     return ws
 
 def ridgeTest(xArr, yArr, numIt=30):
-    """ Run lwlr on each point of test array.  """
+    """ 
+    Run lwlr on each point of test array. 
+
+    Returns:
+        History of weights change. 
+    """
     xMat, yMat = regularize(xArr, yArr)     # training data need to be regularized first
     wMat = zeros((numIt, shape(xMat)[1]))
     for i in range(numIt):
@@ -94,7 +99,7 @@ def ridgeTest(xArr, yArr, numIt=30):
         wMat[i, :] = ws.T
     return wMat
 
-def stageWise(xArr, yArr, eps=0.01, numIt=100):
+def stageWiseRegres(xArr, yArr, eps=0.01, numIt=100):
     """
     Forward stepwise regression algorithm.
 
@@ -104,7 +109,8 @@ def stageWise(xArr, yArr, eps=0.01, numIt=100):
         eps: Algorithm parameter.
 
     Returns:
-        Regression weights of each feature.
+        wsMax: Regression weights of each feature.
+        returnMat: History of weights change.
     """
     xMat, yMat = regularize(xArr, yArr)     # training data need to be regularized first
     m, n = shape(xMat)
@@ -124,7 +130,7 @@ def stageWise(xArr, yArr, eps=0.01, numIt=100):
                     wsMax = wsTest
         ws = wsMax.copy()
         returnMat[i, :] = ws.T
-    return returnMat
+    return wsMax, returnMat
 
 def rssError(yMat, yPred):
     """ Ordinary Least Square Error. """
@@ -240,7 +246,7 @@ if __name__ == '__main__':
     # abX, abY = loadDataSet('data/abalone.txt')
     # xMat, yMat = regularize(abX, abY)
     # ws = standRegres(abX, abY); print(ws)
-    # wsHis = stageWise(abX, abY, 0.001, 5000); plotWeightChange(wsHis)
+    # ws, wsHis = stageWiseRegres(abX, abY, 0.001, 5000); plotWeightChange(wsHis)
     # wsHis = ridgeTest(abX, abY); plotWeightChange(wsHis)
     
 
