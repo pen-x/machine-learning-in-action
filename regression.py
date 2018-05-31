@@ -160,6 +160,7 @@ def regularize(xArr, yArr):
 
 def crossValidation(xArr, yArr, numVal=10):
     """ Run 10-folder cross-validation with ridgeTest. """
+    # TODO(pen-x) Move this function to a util file.
     m = len(yArr)
     indexList = list(range(m))
     errorMat = zeros((numVal, 30))
