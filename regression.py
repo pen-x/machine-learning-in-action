@@ -1,10 +1,6 @@
 import matplotlib.pyplot as plt
 from numpy import *
 
-def rssError(yMat, yPred):
-    """ Ordinary Least Square Error. """
-    return ((yMat - yPred) ** 2).sum()
-
 def standRegres(xArr, yArr):
     """
     Standard linear regression algorithm.
@@ -26,7 +22,7 @@ def standRegres(xArr, yArr):
 
 def lwlr(testPoint, xArr, yArr, k=1.0):
     """
-    Locally Weighted Linear Regression algorithm (Gaussian Kernel).
+    Locally Weighted Linear Regression algorithm on single test point (Gaussian Kernel).
 
     Args:
         testPoint: Test point, training points around test point are weighted higher.
@@ -35,7 +31,7 @@ def lwlr(testPoint, xArr, yArr, k=1.0):
         k: Gaussian kernel parameter.
 
     Returns:
-        Regression weights of each feature.
+        Regression weights of each feature based on test point.
     """
     xMat = mat(xArr); yMat = mat(yArr).T
     m = shape(xMat)[0]
@@ -50,8 +46,19 @@ def lwlr(testPoint, xArr, yArr, k=1.0):
     ws = xTx.I * (xMat.T * (weights * yMat))
     return ws
 
-def lwlrTest(testArr, xArr, yArr, k=1.0):
-    """ Run lwlr on each point of test array. """ 
+def lwlrRegres(testArr, xArr, yArr, k=1.0):
+    """ 
+    Locally Weighted Linear Regression algorithm.
+
+    Args:
+        testArr: Matrix of test data, sample * feature.
+        xArr: Matrix of training data, sample * feature.
+        yArr: Value array of trainig data.
+        k: Gaussian kernel parameter.
+
+    Returns:
+        Value array of test data.
+    """ 
     m = shape(testArr)[0]
     yHat = zeros((m, 1))
     for i in range(m):  # for each test point, we calcluate a unique regression weights.
@@ -80,18 +87,48 @@ def ridgeRegres(xMat, yMat, lam=0.2):
 
 def ridgeTest(xArr, yArr, numIt=30):
     """ Run lwlr on each point of test array.  """
-    # xMat = mat(xArr); yMat = mat(yArr).T
-    # yMean = mean(yMat, 0)
-    # yMat = yMat - yMean
-    # xMeans = mean(xMat, 0)
-    # xVar = var(xMat, 0)
-    # xMat = (xMat - xMeans) / xVar
-    xMat, yMat = regularize(xArr, yArr)
+    xMat, yMat = regularize(xArr, yArr)     # training data need to be regularized first
     wMat = zeros((numIt, shape(xMat)[1]))
     for i in range(numIt):
         ws = ridgeRegres(xMat, yMat, exp(i - 10))
         wMat[i, :] = ws.T
     return wMat
+
+def stageWise(xArr, yArr, eps=0.01, numIt=100):
+    """
+    Forward stepwise regression algorithm.
+
+    Args:
+        xMat: Matrix of training data, sample * feature.
+        yMat: Value array of trainig data.
+        eps: Algorithm parameter.
+
+    Returns:
+        Regression weights of each feature.
+    """
+    xMat, yMat = regularize(xArr, yArr)     # training data need to be regularized first
+    m, n = shape(xMat)
+    returnMat = zeros((numIt, n))
+    ws = zeros((n, 1)); wsTest = ws.copy(); wsMax = ws.copy()
+    for i in range(numIt):
+        # print(ws.T)
+        lowestError = inf
+        for j in range(n):
+            for sign in [-1, 1]:
+                wsTest = ws.copy()
+                wsTest[j] += eps * sign
+                yTest = xMat * wsTest
+                rssE = rssError(yMat.A, yTest.A)
+                if rssE < lowestError:
+                    lowestError = rssE
+                    wsMax = wsTest
+        ws = wsMax.copy()
+        returnMat[i, :] = ws.T
+    return returnMat
+
+def rssError(yMat, yPred):
+    """ Ordinary Least Square Error. """
+    return ((yMat - yPred) ** 2).sum()
 
 def regularize(xArr, yArr):
     """
@@ -115,62 +152,8 @@ def regularize(xArr, yArr):
     
     return xMat, yMat
 
-def stageWise(xMat, yMat, eps=0.01):
-    """
-    Forward stepwise regression algorithm.
-
-    Args:
-        xMat: Matrix of training data, sample * feature.
-        yMat: Value array of trainig data.
-        eps: Algorithm parameter.
-
-    Returns:
-        Regression weights of each feature.
-    """
-    m, n = shape(xMat)
-    ws = zeros((n, 1)); wsTest = ws.copy()
-    lowestError = inf
-    for j in range(n):
-        for sign in [-1, 1]:
-            wsTest = ws.copy()
-            wsTest[j] += eps * sign
-            yTest = xMat * wsTest
-            rssE = rssError(yMat.A, yTest.A)
-            if rssE < lowestError:
-                lowestError = rssE
-                ws = wsTest
-    return ws
-
-def stageWiseTest(xArr, yArr, eps=0.01, numIt=100):
-    """  """
-    # xMat = mat(xArr); yMat = mat(yArr).T
-    # yMean = mean(yMat, 0)
-    # yMat = yMat - yMean
-    # xMat = regularize(xMat)
-    xMat, yMat = regularize(xArr, yArr)
-    m, n = shape(xMat)
-    returnMat = zeros((numIt, n))
-    ws = zeros((n, 1)); wsTest = ws.copy(); wsMax = ws.copy()
-    for i in range(numIt):
-        ws = stageWise(xMat, yMat, eps)
-        # print(ws.T)
-        returnMat[i, :] = ws.T
-    return returnMat
-
-def loadDataSet(fileName):
-    numFeat = len(open(fileName).readline().split('\t')) - 1
-    dataMat = []; labelMat = []
-    fr = open(fileName)
-    for line in fr.readlines():
-        lineArr = []
-        curLine = line.strip().split('\t')
-        for i in range(numFeat):
-            lineArr.append(float(curLine[i]))
-        dataMat.append(lineArr)
-        labelMat.append(float(curLine[-1]))
-    return dataMat, labelMat
-
 def crossValidation(xArr, yArr, numVal=10):
+    """ Run 10-folder cross-validation with ridgeTest. """
     m = len(yArr)
     indexList = list(range(m))
     errorMat = zeros((numVal, 30))
@@ -202,68 +185,69 @@ def crossValidation(xArr, yArr, numVal=10):
     print('the best model from Ridge Regression is:\n', unReg)
     print('with constant term:', -1 * sum(multiply(meanX, unReg)) + mean(yMat))
 
-def plot(xMat, yMat, yHat):
+def loadDataSet(fileName):
+    numFeat = len(open(fileName).readline().split('\t')) - 1
+    dataMat = []; labelMat = []
+    fr = open(fileName)
+    for line in fr.readlines():
+        lineArr = []
+        curLine = line.strip().split('\t')
+        for i in range(numFeat):
+            lineArr.append(float(curLine[i]))
+        dataMat.append(lineArr)
+        labelMat.append(float(curLine[-1]))
+    return dataMat, labelMat
+
+def plotBestFit(xMat, yMat, yHat):
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.scatter(xMat[:, 1].flatten().A[0], yMat.T[:, 0].flatten().A[0])
     srtInd = xMat[:, 1].argsort(0)
-    xSort = xMat[srtInd]
-    # xCopy = xMat.copy()
-    # xCopy.sort(0)
-    # yHat = xCopy * ws
-    # yHat = lwlrTest(xCopy, xArr, yArr, 0.003)
-    ax.plot(xSort[:, 1], yHat[srtInd][:, 1])
+    xSort = xMat[:, 1][srtInd]
+    ax.plot(xSort[:, 0], yHat[srtInd][:, 0])
+    plt.show()
+
+def plotWeightChange(wsHis):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(wsHis)
     plt.show()
 
 if __name__ == '__main__':
-    xArr, yArr = loadDataSet('data/ex0.txt')
-    xMat = mat(xArr); yMat = mat(yArr)
-    ws = standRegres(xArr, yArr); yHat = xMat * ws
-    print(corrcoef(yHat.T, yMat))   # correlation coefficient
-    yHat = lwlrTest(xArr, xArr, yArr, 1.0)
-    plot(xMat, yMat, yHat)
-    yHat = lwlrTest(xArr, xArr, yArr, 0.01)
-    plot(xMat, yMat, yHat)
-    yHat = lwlrTest(xArr, xArr, yArr, 0.003)
-    plot(xMat, yMat, yHat)
+    # xArr, yArr = loadDataSet('data/ex0.txt')
+    # xMat = mat(xArr); yMat = mat(yArr)
+    # ws = standRegres(xArr, yArr); yHat = xMat * ws
+    # print(corrcoef(yHat.T, yMat))   # correlation coefficient
+    # plotBestFit(xMat, yMat, yHat)
+    # yHat = lwlrRegres(xArr, xArr, yArr, 1.0)
+    # plotBestFit(xMat, yMat, yHat)
+    # yHat = lwlrRegres(xArr, xArr, yArr, 0.01)
+    # plotBestFit(xMat, yMat, yHat)
+    # yHat = lwlrRegres(xArr, xArr, yArr, 0.003)
+    # plotBestFit(xMat, yMat, yHat)
 
 
     # abX, abY = loadDataSet('data/abalone.txt')
-    # yHat01 = lwlrTest(abX[0: 99], abX[0: 99], abY[0: 99], 0.1); print(rssError(abY[0: 99], yHat01.T))
-    # yHat1 = lwlrTest(abX[0: 99], abX[0: 99], abY[0: 99], 1); print(rssError(abY[0: 99], yHat1.T))
-    # yHat10 = lwlrTest(abX[0: 99], abX[0: 99], abY[0: 99], 10); print(rssError(abY[0: 99], yHat10.T))
-    # yHat01 = lwlrTest(abX[100: 199], abX[0: 99], abY[0: 99], 0.1); print(rssError(abY[100: 199], yHat01.T))
-    # yHat1 = lwlrTest(abX[100: 199], abX[0: 99], abY[0: 99], 1); print(rssError(abY[100: 199], yHat1.T))
-    # yHat10 = lwlrTest(abX[100: 199], abX[0: 99], abY[0: 99], 10); print(rssError(abY[100: 199], yHat10.T))
-    # ws = standRegres(abX[0: 99], abY[0: 99]); yHat = mat(abX[100: 199]) * ws
-    # print(rssError(abY[100: 199], yHat.T.A))
+    # yHat01 = lwlrRegres(abX[0: 99], abX[0: 99], abY[0: 99], 0.1); print(rssError(abY[0: 99], yHat01.T))
+    # yHat1 = lwlrRegres(abX[0: 99], abX[0: 99], abY[0: 99], 1); print(rssError(abY[0: 99], yHat1.T))
+    # yHat10 = lwlrRegres(abX[0: 99], abX[0: 99], abY[0: 99], 10); print(rssError(abY[0: 99], yHat10.T))
+    # yHat01 = lwlrRegres(abX[100: 199], abX[0: 99], abY[0: 99], 0.1); print(rssError(abY[100: 199], yHat01.T))
+    # yHat1 = lwlrRegres(abX[100: 199], abX[0: 99], abY[0: 99], 1); print(rssError(abY[100: 199], yHat1.T))
+    # yHat10 = lwlrRegres(abX[100: 199], abX[0: 99], abY[0: 99], 10); print(rssError(abY[100: 199], yHat10.T))
+    # yHat = mat(abX[100: 199]) * standRegres(abX[0: 99], abY[0: 99]); print(rssError(abY[100: 199], yHat.T.A))
 
     
     # abX, abY = loadDataSet('data/abalone.txt')
-    # xMat = regularize(abX)
-    # yMean = mean(abY, 0)
-    # yMat = abY - yMean
-    # weights = standRegres(xMat, yMat)
-    # print(weights)
-    # ridgeWeights = stageWise(abX, abY, 0.001, 5000)
-    # # ridgeWeights = ridgeTest(abX, abY)
-    # import matplotlib.pyplot as plt
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111)
-    # ax.plot(ridgeWeights)
-    # plt.show()
+    # xMat, yMat = regularize(abX, abY)
+    # ws = standRegres(abX, abY); print(ws)
+    # wsHis = stageWise(abX, abY, 0.001, 5000); plotWeightChange(wsHis)
+    # wsHis = ridgeTest(abX, abY); plotWeightChange(wsHis)
+    
 
-    # lgX, lgY = loadDataSet('data/lego.txt')
-    # m, n = shape(lgX)
-    # print(m, n)
-    # lgX1 = mat(ones((m, n + 1)))
-    # lgX1[:, 1: n + 1] = mat(lgX)
-    # print(lgX[0])
-    # print(lgX1[0])
-    # ws = standRegres(lgX1, lgY)
-    # print(ws)
-    # print(lgX1[0] * ws)
-    # print(lgX1[-1] * ws)
-    # print(lgX1[43] * ws)
-    # crossValidation(lgX, lgY, 10)
-    # print(ridgeTest(lgX, lgY))
+    lgX, lgY = loadDataSet('data/lego.txt')
+    m, n = shape(lgX)
+    lgX1 = mat(ones((m, n + 1)))
+    lgX1[:, 1: n + 1] = mat(lgX)
+    ws = standRegres(lgX1, lgY)
+    print('the best model from Ridge Regression is:\n', ws.T)
+    crossValidation(lgX, lgY, 10)
