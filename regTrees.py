@@ -7,11 +7,35 @@ def regErr(dataSet):
     return var(dataSet[:, -1]) * shape(dataSet)[0]
 
 def binSplitDataSet(dataSet, feature, value):
-    mat0 = dataSet[nonzero(dataSet[:, feature] > value)[0], :]
+    """
+    Split training data according to split feature and split value.
+
+    Args:
+        dataSet: Training data.
+        feature: Index of split feature.
+        value: Split value.
+
+    Returns:
+        mat0: Sub-set of training data that has feature value less than split value.
+        mat1: Sub-set of training data that has feature value more than split value.
+    """
+    mat0 = dataSet[nonzero(dataSet[:, feature] > value)[0], :]  # nonzero returns a tuple of arrays, one for each dimension
     mat1 = dataSet[nonzero(dataSet[:, feature] <= value)[0], :]
     return mat0, mat1
 
 def createTree(dataSet, leafType=regLeaf, errType=regErr, ops=(1, 4)):
+    """
+    Create CART (Classification and Regression Tree) for training data.
+
+    Args:
+        dataSet: Training data.
+        leafType: Method to create tree leaf, regLeaf for regression tree, modelLeaf for model tree.
+        errType: Method to calculate error, regErr for regression tree, modelErr for model tree.
+        ops = (tolS, tolN): tolS is minimum acceptable delta error, tolN is minimun data count for a leaf node.
+
+    Returns:
+        Tree is dictionary format.
+    """
     feat, val = chooseBestSplit(dataSet, leafType, errType, ops)
     if feat == None:
         return val
