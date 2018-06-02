@@ -1,10 +1,23 @@
 from numpy import *
 
 def regLeaf(dataSet):
+    """ Create regression tree leaf, use mean value of data in this leaf as representation. """
     return mean(dataSet[:, -1])
 
 def regErr(dataSet):
+    """ Calculate square error on regression tree leaf. """
     return var(dataSet[:, -1]) * shape(dataSet)[0]
+
+def modelLeaf(dataSet):
+    """ Create model tree leaf, leaf value is linear regression weights. """
+    ws, X, Y = linearSolve(dataSet)
+    return ws
+
+def modelErr(dataSet):
+    """ Calculate square error on model tree leaf. """
+    ws, X, Y = linearSolve(dataSet)
+    yHat = X * ws
+    return sum(power(Y - yHat, 2))
 
 def binSplitDataSet(dataSet, feature, value):
     """
@@ -30,11 +43,11 @@ def createTree(dataSet, leafType=regLeaf, errType=regErr, ops=(1, 4)):
     Args:
         dataSet: Training data.
         leafType: Method to create tree leaf, regLeaf for regression tree, modelLeaf for model tree.
-        errType: Method to calculate error, regErr for regression tree, modelErr for model tree.
-        ops = (tolS, tolN): tolS is minimum acceptable delta error, tolN is minimun data count for a leaf node.
+        errType: Method to calculate leaf error, regErr for regression tree, modelErr for model tree.
+        ops = (tolS, tolN): tolS is minimum acceptable delta error, tolN is minimun data count for a leaf node. 
 
     Returns:
-        Tree is dictionary format.
+        Tree in dictionary format. 'spInd' and 'spVal' indicate split feature index and value, 'left' and 'right' indicate left and right sub-tree.
     """
     feat, val = chooseBestSplit(dataSet, leafType, errType, ops)
     if feat == None:
@@ -48,24 +61,38 @@ def createTree(dataSet, leafType=regLeaf, errType=regErr, ops=(1, 4)):
     return retTree
 
 def chooseBestSplit(dataSet, leafType=regLeaf, errType=regErr, ops=(1, 4)):
+    """
+    Find the best split feature index and value for current data set.
+
+    Args:
+        dataSet: Training data.
+        leafType: Method to create tree leaf, regLeaf for regression tree, modelLeaf for model tree.
+        errType: Method to calculate leaf error, regErr for regression tree, modelErr for model tree.
+        ops = (tolS, tolN): tolS is minimum acceptable error drop, tolN is minimun data count for a leaf node.
+
+    Returns:
+        The best split index and value.
+    """
     tolS = ops[0]; tolN = ops[1]
-    if len(set(dataSet[:, -1].T.tolist()[0])) == 1:
+    if len(set(dataSet[:, -1].T.tolist()[0])) == 1:     # if only one sample left, create one leaf with it, so split feature is None
         return None, leafType(dataSet)
     m, n = shape(dataSet)
-    S = errType(dataSet)
+    S = errType(dataSet)    # S stores error of whole set as tree leaf
     bestS = inf; bestIndex = 0; bestValue = 0
     for featIndex in range(n - 1):
+        # each value of this feature would be tested as split value
         for splitVal in set(dataSet[:, featIndex].T.tolist()[0]):
             mat0, mat1 = binSplitDataSet(dataSet, featIndex, splitVal)
             if (shape(mat0)[0] < tolN) or (shape(mat1)[0] < tolN):
                 continue
             newS = errType(mat0) + errType(mat1)
-            if newS < bestS:
+            if newS < bestS:    # log the minimum split error
                 bestIndex = featIndex
                 bestValue = splitVal
                 bestS = newS
-    if (S - bestS) < tolS:
+    if (S - bestS) < tolS:      # if the best split doesn't bring enough error drop, ignore it
         return None, leafType(dataSet)
+    # check left and right sub-tree contains enough data
     mat0, mat1 = binSplitDataSet(dataSet, bestIndex, bestValue)
     if (shape(mat0)[0] < tolN) or (shape(mat1)[0] < tolN):
         return None, leafType(dataSet)
@@ -82,6 +109,9 @@ def getMean(tree):
     return (tree['left'] + tree['right']) / 2.0
 
 def prune(tree, testData):
+    """
+    Post-prune regression tree on test data.
+    """
     if shape(testData)[0] == 0:
         return getMean(tree)
     if (isTree(tree['right']) or isTree(tree['left'])):
@@ -90,6 +120,7 @@ def prune(tree, testData):
         tree['left'] = prune(tree['left'], lSet)
     if isTree(tree['right']):
         tree['right'] = prune(tree['right'], rSet)
+    # if after recursive prune, left and right sub-tree are all leaves, then consider combining them into one leaf
     if not isTree(tree['left']) and not isTree(tree['right']):
         lSet, rSet = binSplitDataSet(testData, tree['spInd'], tree['spVal'])
         errorNoMerge = sum(power(lSet[:, -1] - tree['left'], 2)) + sum(power(rSet[:, -1] - tree['right'], 2))
@@ -104,6 +135,7 @@ def prune(tree, testData):
         return tree
 
 def linearSolve(dataSet):
+    """ Standard linear regression algorithm. """
     m, n = shape(dataSet)
     X = mat(ones((m, n))); Y = mat(ones((m, 1)))
     X[:, 1:n] = dataSet[:, 0:n-1]; Y = dataSet[:, -1]
@@ -113,14 +145,49 @@ def linearSolve(dataSet):
     ws = xTx.I * (X.T * Y)
     return ws, X, Y
 
-def modelLeaf(dataSet):
-    ws, X, Y = linearSolve(dataSet)
-    return ws
+def regTreeEval(model, inData):
+    """ Evaluate regression tree leaf value. """
+    return float(model)
 
-def modelErr(dataSet):
-    ws, X, Y = linearSolve(dataSet)
-    yHat = X * ws
-    return sum(power(Y - yHat, 2))
+def modelTreeEval(model, inData):
+    """ Evaluate model tree leaf value. """
+    n = shape(inData)[1]
+    X = mat(ones((1, n + 1)))
+    X[:, 1: n + 1] = inData
+    return float(X * model)
+
+def treeForeCast(tree, inData, modelEval=regTreeEval):
+    """
+    Forecast value for new data sample.
+
+    Args:
+        tree: Generated regression tree.
+        inData: Feature vector of one sample.
+        modelEval: Method to evaluate value on a tree leaf.
+
+    Returns:
+        Forecasted value for input data.
+    """
+    if not isTree(tree):
+        return modelEval(tree, inData)
+    if inData[tree['spInd']] > tree['spVal']:
+        if isTree(tree['left']):
+            return treeForeCast(tree['left'], inData, modelEval)
+        else:
+            return modelEval(tree['left'], inData)
+    else:
+        if isTree(tree['right']):
+            return treeForeCast(tree['right'], inData, modelEval)
+        else:
+            return modelEval(tree['right'], inData)
+
+def createForeCast(tree, testData, modelEval=regTreeEval):
+    """ Forcast values on all test data. """
+    m = len(testData)
+    yHat = mat(zeros((m, 1)))
+    for i in range(m):
+        yHat[i, 0] = treeForeCast(tree, mat(testData[i]), modelEval)
+    return yHat
 
 def loadDataSet(fileName):
     dataMat = []
@@ -131,59 +198,24 @@ def loadDataSet(fileName):
         dataMat.append(fltLine)
     return dataMat
 
-def regTreeEval(model, inData):
-    return float(model)
-
-def modelTreeEval(model, inData):
-    n = shape(inData)[1]
-    X = mat(ones((1, n + 1)))
-    X[:, 1: n + 1] = inData
-    return float(X * model)
-
-def treeForeCase(tree, inData, modelEval=regTreeEval):
-    if not isTree(tree):
-        return modelEval(tree, inData)
-    if inData[tree['spInd']] > tree['spVal']:
-        if isTree(tree['left']):
-            return treeForeCase(tree['left'], inData, modelEval)
-        else:
-            return modelEval(tree['left'], inData)
-    else:
-        if isTree(tree['right']):
-            return treeForeCase(tree['right'], inData, modelEval)
-        else:
-            return modelEval(tree['right'], inData)
-
-def createForeCase(tree, testData, modelEval=regTreeEval):
-    m = len(testData)
-    yHat = mat(zeros((m, 1)))
-    for i in range(m):
-        yHat[i, 0] = treeForeCase(tree, mat(testData[i]), modelEval)
-    return yHat
-
 if __name__ == '__main__':
-    # testMat = mat(eye(4))
-    # print(testMat)
-    # mat0, mat1 = binSplitDataSet(testMat, 1, 0.5)
-    # print(mat0, mat1)
-
     # myMat = mat(loadDataSet('data/ex00.txt')); print(createTree(myMat))
     # myMat = mat(loadDataSet('data/ex0.txt')); print(createTree(myMat, ops=(0, 1)))
-    # myMat2 = mat(loadDataSet('data/ex2.txt')); myMat2Test = mat(loadDataSet('data/ex2test.txt'))
-    # myTree = createTree(myMat2, ops=(0, 1))
-    # print(prune(myTree, myMat2Test))
+    # myMat = mat(loadDataSet('data/ex2.txt')); myMatTest = mat(loadDataSet('data/ex2test.txt'))
+    # myTree = createTree(myMat, ops=(0, 1))
+    # print(prune(myTree, myMatTest))
 
-    # myMat2 = mat(loadDataSet('data/exp2.txt'))
-    # myTree2 = createTree(myMat2, modelLeaf, modelErr, (1, 10))
-    # print(myTree2)
+    # myMat = mat(loadDataSet('data/exp2.txt'))
+    # myTree = createTree(myMat, modelLeaf, modelErr, (1, 10))
+    # print(myTree)
 
     trainMat = mat(loadDataSet('data/bikeSpeedVsIq_train.txt'))
     testMat = mat(loadDataSet('data/bikeSpeedVsIq_test.txt'))
     myTree = createTree(trainMat, ops=(1, 20))
-    yHat = createForeCase(myTree, testMat[:, 0])
+    yHat = createForeCast(myTree, testMat[:, 0])
     print(corrcoef(yHat, testMat[:, 1], rowvar=0)[0, 1])
     myTree = createTree(trainMat, modelLeaf, modelErr, (1, 20)) 
-    yHat = createForeCase(myTree, testMat[:, 0], modelTreeEval)
+    yHat = createForeCast(myTree, testMat[:, 0], modelTreeEval)
     print(corrcoef(yHat, testMat[:, 1], rowvar=0)[0, 1])
     ws, X, Y = linearSolve(trainMat)
     for i in range(shape(testMat)[0]):
