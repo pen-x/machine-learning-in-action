@@ -59,7 +59,7 @@ def kMeans(dataSet, k, distMeans=distEclud, createCent=randCent):
 
 def biKmeans(dataSet, k, distMeans=distEclud):
     """
-    Binary K-Means clustering algorithm.
+    Bisecting K-Means clustering algorithm.
 
     Args:
         dataSet: Training data.
