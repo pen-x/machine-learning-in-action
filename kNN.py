@@ -1,21 +1,22 @@
-'''
-kNN: k Nearest Neighbors
-
-Input:      inX: vector to compare to existing dataset (1xN)
-            dataSet: size m data set of known vectors (NxM)
-            labels: data set labels (1xM vector)
-            k: number of neighbors to use for comparison (should be an odd number)
-            
-Output:     the most popular class label
-'''
-
 from numpy import *
 from os import listdir
 import operator
 
 def classify0(inX, dataSet, labels, k):
+    """
+    K nearest neighbour algorithm. 
+
+    Args:
+        inX: vector to compare to existing dataset (1xN)
+        dataSet: data set of known vectors (NxM)
+        labels: data set labels (1xM vector)
+        k: number of neighbors to use for comparison (should be an odd number)
+
+    Returns:
+        The most popular class label.
+    """
     dataSetSize = dataSet.shape[0]
-    diffMat = tile(inX, (dataSetSize, 1)) - dataSet
+    diffMat = tile(inX, (dataSetSize, 1)) - dataSet     # method tile() copy inX for each row
     sqDiffMat = diffMat ** 2
     sqDistances = sqDiffMat.sum(axis=1)
     distances = sqDistances ** 0.05
@@ -26,6 +27,48 @@ def classify0(inX, dataSet, labels, k):
         classCount[voteIlabel] = classCount.get(voteIlabel, 0) + 1
     sortedClassCount = sorted(classCount.items(), key=operator.itemgetter(1), reverse=True)
     return sortedClassCount[0][0]
+
+def autoNorm(dataSet):
+    """
+    Normailize data set.
+
+    Returns:
+        normDataSet: normalized data set
+        ranges: (max value - min value) for each column
+        minVals: min value for each column
+    """
+    minVals = dataSet.min(0)    # min value of each column
+    maxVals = dataSet.max(0)
+    ranges = maxVals - minVals
+    normDataSet = zeros(shape(dataSet))
+    m = dataSet.shape[0]
+    normDataSet = dataSet - tile(minVals, (m, 1))
+    normDataSet = normDataSet / tile(ranges, (m, 1))
+    return normDataSet, ranges, minVals
+
+def createDataSet():
+    group = array([[1.0, 1.1], [1.0, 1.0], [0, 0], [0, 0.1]])
+    labels = ['A', 'A', 'B', 'B']
+    return group, labels
+
+def simpleTest():
+    group, labels = createDataSet()
+    print(classify0([0, 0], group, labels, 3))
+
+def datingClassTest():
+    hRatio = 0.10   # ratio of test set
+    datingDataMat, datingLabels = file2matrix('./datingTestSet2.txt')
+    # plotData(datingDataMat, datingLabels)
+    normMat, ranges, minVals = autoNorm(datingDataMat)
+    m = normMat.shape[0]
+    numTestVecs = int(m * hRatio)
+    errorCount = 0.0
+    for i in range(numTestVecs):
+        classifierResult = classify0(normMat[i, :], normMat[numTestVecs:m, :], datingLabels[numTestVecs:m], 3)
+        print('The classifier came back with: %d, the real answer is: %d' % (classifierResult, datingLabels[i]))
+        if classifierResult != datingLabels[i]:
+            errorCount += 1.0
+    print('The total error rate is: %f' % (errorCount / float(numTestVecs)))
 
 def file2matrix(filename):
     fr = open(filename)
@@ -50,40 +93,6 @@ def plotData(datingDataMat, datingLabels):
     ax.scatter(datingDataMat[:, 0], datingDataMat[:, 1], 15.0 * array(datingLabels), 15.0 * array(datingLabels))
     plt.show()
 
-def autoNorm(dataSet):
-    minVals = dataSet.min(0)
-    maxVals = dataSet.max(0)
-    ranges = maxVals - minVals
-    normDataSet = zeros(shape(dataSet))
-    m = dataSet.shape[0]
-    normDataSet = dataSet - tile(minVals, (m, 1))
-    normDataSet = normDataSet / tile(ranges, (m, 1))
-    return normDataSet, ranges, minVals
-
-def createDataSet():
-    group = array([[1.0, 1.1], [1.0, 1.0], [0, 0], [0, 0.1]])
-    labels = ['A', 'A', 'B', 'B']
-    return group, labels
-
-def simpleTest():
-    group, labels = createDataSet()
-    print(classify0([0, 0], group, labels, 3))
-
-def datingClassTest():
-    hRatio = 0.10
-    datingDataMat, datingLabels = file2matrix('./datingTestSet2.txt')
-    # plotData(datingDataMat, datingLabels)
-    normMat, ranges, minVals = autoNorm(datingDataMat)
-    m = normMat.shape[0]
-    numTestVecs = int(m * hRatio)
-    errorCount = 0.0
-    for i in range(numTestVecs):
-        classifierResult = classify0(normMat[i, :], normMat[numTestVecs:m, :], datingLabels[numTestVecs:m], 3)
-        print('The classifier came back with: %d, the real answer is: %d' % (classifierResult, datingLabels[i]))
-        if classifierResult != datingLabels[i]:
-            errorCount += 1.0
-    print('The total error rate is: %f' % (errorCount / float(numTestVecs)))
-
 def classifyPerson():
     resultList = ['not at all', 'in small doses', 'in large doses']
     percentTats = float(input('Percentage of time spent playing video games?'))
@@ -92,11 +101,12 @@ def classifyPerson():
     datingDataMat, datingLabels = file2matrix('./datingTestSet2.txt')
     normMat, ranges, minVals = autoNorm(datingDataMat)
     inArr = array([ffMiles, percentTats, iceCream])
+    # inArr also needs to be normailized
     classifierResult = classify0((inArr - minVals) / ranges, normMat, datingLabels, 3)
     print('You will probably like this person: ' + resultList[classifierResult - 1])
 
 def img2vector(filename):
-    returnVect = zeros((1, 1024))
+    returnVect = zeros((1, 1024))   # map 32*32 matrix to 1*1024 vector
     fr = open(filename)
     for i in range(32):
         lineStr = fr.readline()
