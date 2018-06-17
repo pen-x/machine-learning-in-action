@@ -13,7 +13,8 @@ def loadDataSet():
 def sigmoid(inX):
     return 1.0 / (1 + exp(-inX))
 
-def gradAscent(dataMatIn, classLabels):
+def gradAscent(dataMatIn, classLabels): 
+    """ Batch grading ascent algorithm. """
     dataMatrix = mat(dataMatIn)
     labelMat = mat(classLabels).transpose()
     m, n = shape(dataMatrix)
@@ -27,6 +28,7 @@ def gradAscent(dataMatIn, classLabels):
     return weights
 
 def stocGradAscent0(dataMatrix, classLabels):
+    """ Random grading ascent algorithm. """
     m, n = shape(dataMatrix)
     alpha = 0.01
     weights = ones(n)
@@ -37,12 +39,13 @@ def stocGradAscent0(dataMatrix, classLabels):
     return weights
 
 def stocGradAscent1(dataMatrix, classLabels, numIter=150):
+    """ Advanced random grading ascent algorithm. """
     m, n = shape(dataMatrix)
     weights = ones(n)
     for j in range(numIter):
         dataIndex = list(range(m))
         for i in range(m):
-            alpha = 4 / (1.0 + j + i) + 0.01
+            alpha = 4 / (1.0 + j + i) + 0.01    # decrease alpha slowly
             randIndex = int(random.uniform(0, len(dataIndex)))
             h = sigmoid(sum(dataMatrix[randIndex] * weights))
             error = classLabels[randIndex] - h
