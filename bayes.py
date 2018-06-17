@@ -11,12 +11,14 @@ def loadDataSet():
     return postingList, classVec
 
 def createVocabList(dataSet):
+    """ Collect all unique words from data set. """
     vocabSet = set([])
     for document in dataSet:
         vocabSet = vocabSet | set(document)
     return list(vocabSet)
 
 def setOfWords2Vec(vocabList, inputSet):
+    """ Map document to set-of-words model vector. """
     returnVec = [0] * len(vocabList)
     for word in inputSet:
         if word in vocabList:
@@ -26,6 +28,7 @@ def setOfWords2Vec(vocabList, inputSet):
     return returnVec
 
 def bagOfWords2VecMN(vocabList, inputSet):
+    """ Map document to bag-of-words model vector. """
     returnVec = [0] * len(vocabList)
     for word in inputSet:
         if word in vocabList:
@@ -35,12 +38,26 @@ def bagOfWords2VecMN(vocabList, inputSet):
     return returnVec
 
 def trainNB0(trainMatrix, trainCategory):
+    """
+    Train naive bayes model - probilities of each word on each class.
+    P(w_n|c_i) = num of word n on class i / num of all words on class i
+
+    Args:
+        trainMatrix: Feature vectors for training data.
+        trainCategory: Labels for training data.
+
+    Returns:
+        p0Vect, p1Vect: Probility of each word on class 0/1.
+        pAbusive: Ratio of class 1.
+    """
     numTrainDocs = len(trainMatrix)
     numWords = len(trainMatrix[0])
     pAbusive = sum(trainCategory) / float(numTrainDocs)
+
+    # num of word start at 1, num of all wrods start at 2, to avoid 0 for some words
     p0Num = ones(numWords)
     p1Num = ones(numWords)
-    p0Denom = 2.0
+    p0Denom = 2.0   # number of all words on class 0
     p1Denom = 2.0
     for i in range(numTrainDocs):
         if trainCategory[i] == 1:
@@ -49,11 +66,14 @@ def trainNB0(trainMatrix, trainCategory):
         else:
             p0Num += trainMatrix[i]
             p0Denom += sum(trainMatrix[i])
+    
+    # using log to change multiple to add to avoid overflow.
     p1Vect = log(p1Num / p1Denom)
     p0Vect = log(p0Num / p0Denom)
     return p0Vect, p1Vect, pAbusive
 
 def classifyNB(vec2Classify, p0Vec, p1Vec, pClass1):
+    """ Find label with higher probility. """
     p1 = sum(vec2Classify * p1Vec) + log(pClass1)
     p0 = sum(vec2Classify * p0Vec) + log(1.0 - pClass1)
     if p1 > p0:
@@ -93,6 +113,7 @@ def spamTest():
         classList.append(0)
     vocabList = createVocabList(docList)
     trainingSet = list(range(50)); testSet = []
+    # randomly choose 10 from training set as test set
     for i in range(10):
         randIndex = int(random.uniform(0, len(trainingSet)))
         testSet.append(trainingSet[randIndex])
