@@ -2,7 +2,7 @@ import random
 from numpy import *
 
 def selectJrand(i, m):
-    """ Randomly choose one index different from i. """
+    """ Randomly select one index different from i. """
     j = i
     while (j == i):
         j = int(random.uniform(0, m))
@@ -21,13 +21,14 @@ def smoSimple(dataMatIn, classLabels, C, toler, maxIter):
     Simple SMO (Sequential Minimal Optimization) algorithm.
 
     Args:
-        dataMatIn:
-        classLabels:
-        C: 
-        toler:
-        maxIter:
+        dataMatIn: Training data feature vectors.
+        classLabels: Training data labels.
+        C: Penalty factor.
+        toler: Tolerate rate.
+        maxIter: Max dataset loop count before exit.
 
     Returns:
+        Values of optimal solution.
     """
     dataMat = mat(dataMatIn); labelMat = mat(classLabels).transpose()
     b = 0; m, n = shape(dataMat)
@@ -37,7 +38,7 @@ def smoSimple(dataMatIn, classLabels, C, toler, maxIter):
         alphaPairsChanged = 0
         for i in range(m):  # dataset loop
             fXi = float(multiply(alphas, labelMat).T * (dataMat * dataMat[i, :].T)) + b
-            Ei = fXi - float(labelMat[i])       # predict output - real output
+            Ei = fXi - float(labelMat[i])       # Ei = predict output - real output
             if ((labelMat[i] * Ei < - toler) and (alphas[i] < C)) or ((labelMat[i] * Ei > toler) and (alphas[i] > 0)):
                 j = selectJrand(i, m)
                 fXj = float(multiply(alphas, labelMat).T * (dataMat * dataMat[j, :].T)) + b
@@ -90,7 +91,7 @@ class optStruct:
         self.alphas = mat(zeros((self.m, 1)))
         self.b = 0
         self.eCache = mat(zeros((self.m, 2)))   # (valid flag, E value)
-        self.K = mat(zeros((self.m, self.m)))
+        self.K = mat(zeros((self.m, self.m)))   # inner product matrix 
         for i in range(self.m):
             self.K[:, i] = kernelTrans(self.X, self.X[i, :], kTup)
 
@@ -101,6 +102,7 @@ def calcEk(oS, k):
     return Ek
 
 def selectJ(i, oS, Ei):
+    """ Select the second parameter with max |Ei - Ej| to optimise. """
     maxK = -1; maxDeltaE = 0; Ej = 0
     oS.eCache[i] = [1, Ei]
     validEcacheList = nonzero(oS.eCache[:, 0].A)[0]
@@ -115,7 +117,7 @@ def selectJ(i, oS, Ei):
                 maxDeltaE = deltaE
                 Ej = Ek
         return maxK, Ej
-    else:
+    else:   # just randomly select
         j = selectJrand(i, oS.m)
         Ej = calcEk(oS, j)
     return j, Ej
@@ -126,6 +128,16 @@ def updateEk(oS, k):
     oS.eCache[k] = [1, Ek]
 
 def innerL(i, oS):
+    """
+    Inner loop of Platt SMO algorithm.
+
+    Args:
+        i: Index of a1. (a1, a2 are two choose parameters to optimise)
+        oS: Object storing algorithm parameters and data.
+
+    Returns:
+        Flag to indicate whether a1 and a2 are updated.
+    """
     Ei = calcEk(oS, i)
     if ((oS.labelMat[i] * Ei < -oS.tol) and (oS.alphas[i] < oS.C)) or ((oS.labelMat[i] * Ei > oS.tol) and (oS.alphas[i] > 0)):
         j, Ej = selectJ(i, oS, Ei)
@@ -146,12 +158,12 @@ def innerL(i, oS):
             return 0
         oS.alphas[j] -= oS.labelMat[j] * (Ei - Ej) / eta
         oS.alphas[j] = clipAlpha(oS.alphas[j], H, L)
-        updateEk(oS, j)
+        updateEk(oS, j)     # update Ej in cache
         if abs(oS.alphas[j] - alphaJold) < 0.00001:
             print('j not moving enough')
             return 0
         oS.alphas[i] += oS.labelMat[j] * oS.labelMat[i] * (alphaJold - oS.alphas[j])
-        updateEk(oS, i)
+        updateEk(oS, i)     # update Ei in cache
         b1 = oS.b - Ei - oS.labelMat[i] * (oS.alphas[i] - alphaIold) * oS.K[i, i] - oS.labelMat[j] * (oS.alphas[j] - alphaJold) * oS.K[i, j]
         b2 = oS.b - Ej - oS.labelMat[i] * (oS.alphas[i] - alphaIold) * oS.K[i, j] - oS.labelMat[j] * (oS.alphas[j] - alphaJold) * oS.K[j, j]
         if (0 < oS.alphas[i]) and (oS.C > oS.alphas[i]):
@@ -165,6 +177,20 @@ def innerL(i, oS):
         return 0
 
 def smoP(dataMatIn, classLabels, C, toler, maxIter, kTup=('lin', 0)):
+    """
+    Platt SMO (Sequential Minimal Optimization) algorithm.
+
+    Args:
+        dataMatIn: Training data feature vectors.
+        classLabels: Training data labels.
+        C: Penalty factor.
+        toler: Tolerate rate.
+        maxIter: Max dataset loop count before exit.
+        kTup: Tuple of kernel type and kernerl parameters.
+
+    Returns:
+        Values of optimal solution.
+    """
     oS = optStruct(mat(dataMatIn), mat(classLabels).transpose(), C, toler, kTup)
     iter = 0
     entireSet = True
@@ -190,6 +216,7 @@ def smoP(dataMatIn, classLabels, C, toler, maxIter, kTup=('lin', 0)):
     return oS.b, oS.alphas
 
 def calcWs(alphas, dataArr, classLabels):
+    """ Calculate weights from alphas. """
     X = mat(dataArr); labelMat = mat(classLabels).transpose()
     m, n = shape(X)
     w = zeros((n, 1))
@@ -198,11 +225,12 @@ def calcWs(alphas, dataArr, classLabels):
     return w
 
 def kernelTrans(X, A, kTup):
+    """ Calculate inner product matrix with different kernels. """
     m, n = shape(X)
     K = mat(zeros((m, 1)))
-    if kTup[0] == 'lin':
+    if kTup[0] == 'lin':    # linear kernel
         K = X * A.T
-    elif kTup[0] == 'rbf':
+    elif kTup[0] == 'rbf':  # gaussian kernel
         for j in range(m):
             deltaRow = X[j, :] - A
             K[j] = deltaRow * deltaRow.T
